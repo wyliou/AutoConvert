@@ -1,25 +1,4 @@
 # ==============================================================================
-# Field Patterns Configuration - AutoConvert
-# ==============================================================================
-# Version: 1.1
-# Updated: 2025-11-30
-#
-# This file contains regex patterns for identifying sheets and columns
-# in vendor Excel files. All patterns use case-insensitive matching.
-#
-# CUSTOMIZATION:
-# To add custom patterns for your vendors, create field_patterns_user.yaml
-# in the same folder. User patterns will be merged with these defaults.
-#
-# PATTERN SYNTAX:
-# - All patterns are regex (case-insensitive by default)
-# - Use ^ and $ for exact matching: '^invoice$' matches "Invoice" not "Invoice2"
-# - Use (?i) prefix for explicit case-insensitive: '(?i)^inv$'
-# - Patterns are tested in order; first match wins
-# ==============================================================================
-
-
-# ==============================================================================
 # SHEET IDENTIFICATION
 # ==============================================================================
 # These patterns identify which sheet contains invoice vs packing data.
@@ -151,10 +130,6 @@ invoice_columns:
     type: currency
     required: true
 
-  # ----------------------------------------------------------------------------
-  # CURRENCY (Required)
-  # Currency code (USD, CNY, etc.)
-  # ----------------------------------------------------------------------------
   currency:
     patterns:
       # English
@@ -172,10 +147,6 @@ invoice_columns:
     type: string
     required: true
 
-  # ----------------------------------------------------------------------------
-  # COUNTRY OF ORIGIN (Required)
-  # Manufacturing country
-  # ----------------------------------------------------------------------------
   coo:
     patterns:
       # English
@@ -191,6 +162,13 @@ invoice_columns:
       - '(?i)原产地'                      # 原产地
     type: string
     required: true
+
+COD:
+    patterns:
+      # English
+      - '(?i)^c\.?o\.?d\.?$'              # COO, C.O.O, C.O.O.      
+    type: string
+    required: flase
 
   # ----------------------------------------------------------------------------
   # BRAND (Required)
@@ -441,35 +419,3 @@ inv_no_cell:
     - '(?i)^no\.?$'                       # "NO", "NO.", "No", "No." (standalone label)
     - '^[3-5]\d{4}$'                      # Excel date serials (5-digit: 30000-59999 covers 1982-2063)
 
-
-# ==============================================================================
-# IMPLEMENTATION NOTES
-# ==============================================================================
-#
-# HEADER ROW DETECTION (FR7):
-#   - Search rows 7-30 for header row
-#   - Header row has >=7 non-empty cells in first 10 columns
-#   - Some vendors have headers at row 7, others at row 20+
-#
-# INVOICE NUMBER EXTRACTION (FR8):
-#   1. PRIMARY: Extract from header area (rows 1-15)
-#   2. FALLBACK: Use inv_no column if it exists
-#   3. COMBINED: Some vendors have different inv_no per row
-#
-# MERGED CELLS:
-#   - All vendor sheets have merged cells
-#   - Must unmerge cells BEFORE parsing (values NOT propagated)
-#   - Use openpyxl's merged_cells property
-#
-# HEADER NORMALIZATION:
-#   - Collapse multiple spaces: "QTY    (PCS)" -> "QTY (PCS)"
-#   - Strip leading/trailing whitespace
-#   - Patterns are case-insensitive
-#
-# WEIGHT ALLOCATION (FR11):
-#   - If invoice weight missing, allocate from packing
-#   - Group by part_no, distribute proportionally by qty
-#   - Use N+1 decimal precision for accuracy
-#   - Validate: sum of parts = total
-#
-# ==============================================================================

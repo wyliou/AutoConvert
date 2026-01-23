@@ -2,7 +2,7 @@
 
 **Author:** Alex Liou
 **Date:** 2025-12-09
-**Last Updated:** 2026-01-22
+**Last Updated:** 2026-01-24
 
 ## Executive Summary
 
@@ -292,7 +292,7 @@ AutoConvert/
   - **Data value filtering:** Rows with 3+ cells containing data-like values (pure numbers, decimal numbers, alphanumeric codes like "SG24701") are deprioritized. This prevents data rows from being mistakenly identified as header rows.
   - **Note:** After unmerging, non-first rows of merged cells are empty and won't trigger false header detection.
 
-* **FR8:** System can map 13 vendor columns to standardized fields using regex patterns from `invoice_columns.<column_name>.patterns`.
+* **FR8:** System can map 14 vendor columns to standardized fields using regex patterns from `invoice_columns.<column_name>.patterns`.
   - Multiple patterns matching same column -> first pattern wins
   - Same pattern matching multiple columns -> leftmost column wins
       - **Merged header currency detection:** When currency column is not found via header pattern matching, the system scans the **first effective data row** (skipping blank rows, see FR17 logic) for currency values (USD, CNY, EUR, RMB, JPY, GBP, HKD, TWD):    - Columns already matched to other fields are skipped, EXCEPT columns matched to headers containing "PRICE", "AMOUNT", "金额", or "单价" keywords
@@ -320,6 +320,7 @@ AutoConvert/
 | amount     | Yes      | |
 | currency   | Yes      | |
 | coo        | Yes      | |
+| COD        | No       | |
 | brand      | Yes      | |
 | brand_type | Yes      | |
 | model      | Yes      | |
@@ -438,8 +439,7 @@ AutoConvert/
   **Method 2 (Embedded value):** Extract from cell containing both label and value
   - Uses `inv_no_cell.patterns` to match invoice number within label text
   - Example: "INVOICE NO.: 6825090212" → extract "6825090212" if it matches pattern
-  - Note: Current pattern `^[A-Z0-9]+-[A-Z0-9]+-[0-9]+$` only matches hyphenated formats
-
+  
   **Logging:**
   - Format: `[INFO] Inv_No extracted ({method} of '{label}'): {inv_no} at '{cell_ref}'`
   - `{method}`: "embedded", "1 cell right", "2 cells right", "1 row below", "2 rows below", "nested label of '{nested_label}'"
@@ -451,12 +451,12 @@ AutoConvert/
   - **Implementation:** Extract per-row inv_no during item extraction, then only assign header inv_no to items where `item.inv_no` is empty
   - Example: File has header inv_no "F625081578" and data column with "F625081578" (rows 1-6) and "F625081579" (rows 7-16) → output preserves per-row values, not header value for all rows
 
-* **FR17:** System can extract 12 per-item fields from invoice sheet (part_no, po_no, qty, price, amount, currency, coo, brand, brand_type, model, inv_no, serial)
+* **FR17:** System can extract 13 per-item fields from invoice sheet (part_no, po_no, qty, price, amount, currency, coo, COD, brand, brand_type, model, inv_no, serial)
   - **Note:** weight is NOT extracted from invoice sheet; it is calculated by weight allocation (FR31-FR36)
   - **String fields:** Strip leading/trailing whitespace
-  - **WYSIWYG + ROUND_HALF_UP (CRITICAL):** All numeric fields use WYSIWYG decimal places with ROUND_HALF_UP rounding:
-    - **qty:** Use cell's displayed precision 
-    - **price:** Use cell's displayed precision 
+  - **WYSIWYG + ROUND_HALF_UP (CRITICAL):** Numeric fields use WYSIWYG decimal places with ROUND_HALF_UP rounding:
+    - **qty:** Use cell's displayed precision
+    - **price:** Use fixed 5 decimal precision
     - **amount:** Use cell's displayed precision
   - **ROUND_HALF_UP (rounding method):** 0.5 always rounds up (e.g., 0.125 → 0.13, not 0.12). Implementation uses epsilon trick: `round(value * 10^decimals + 1e-9) / 10^decimals` to avoid floating-point issues where 0.19995 is stored as 0.19994999...
   - **Cell format precision detection:** Read cell's `number_format` property, extract decimal places from format string (e.g., `0.00` → 2 decimals, `0.0000` → 4 decimals). If format is `General`, use fixed 5 decimals.
@@ -624,6 +624,9 @@ AutoConvert/
 * **FR28:** System standardizes codes using lookup tables in `\config` folder:
   - 'currency' codes using `currency_rules.xlsx`
   - 'coo' codes using `country_rules.xlsx`
+  - **COD Override (CRITICAL):** When the COD column exists and a row's COD field has a non-empty value, use the COD value to replace the COO value for that invoice line BEFORE standardization. This allows vendors to specify a different country of origin at the line-item level.
+    - Example: Row has coo="CHINA", cod="TAIWAN" → use "TAIWAN" as the COO value for standardization
+    - Example: Row has coo="CHINA", cod="" (empty) → keep "CHINA" as the COO value
   - **Normalization:** Multi-step lookup with progressive normalization:
     1. Try original value (uppercase, trimmed)
     2. Try with ALL internal whitespace removed (e.g., `MADE IN CHINA` → `MADEINCHINA`)
