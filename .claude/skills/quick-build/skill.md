@@ -10,9 +10,9 @@ description: Implement from PRD + architecture quickly
 1. **Plan** - Read docs/PRD.md and docs/architecture.md, then write implementation plan to TodoWrite
 2. **Implement** - Build it. Use your judgment on structure, testing, and order
 3. **Validate** - Run data-driven validation if test data exists
-4. **Commit** - When complete (SKIP THIS STEP at this moment)
+4. **Commit** - When complete
 
-## Data-Driven Validation
+## Data-Driven Validation (Delegate to subagent)
 
 If test data exists (data/, samples/, fixtures/):
 
