@@ -1,0 +1,48 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Secrets
+.env
+*.env.*
+credentials.json
+
+# IDE
+.vscode/
+.idea/
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Logs
+*.log
+process_log.txt
+
+# Build artifacts
+*.spec
+*.manifest
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+tmpclaude-*
+*.tmp
+~$*
+
+# BMAD framework
+_bmad*
+
+# Data files (may contain sensitive business data)
+data*/finished
+data*/output
