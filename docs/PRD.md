@@ -2,7 +2,7 @@
 
 **Author:** Alex Liou
 **Date:** 2025-12-09
-**Last Updated:** 2026-01-24
+**Last Updated:** 2026-01-25
 
 ## Executive Summary
 
@@ -394,9 +394,32 @@ AutoConvert/
 * **FR13:** System validates merged weight cells in packing sheet:
   - **Same part_no sharing merged NW/qty:** Allowed (same part can span multiple rows with shared weight). See FR22 for aggregation handling.
   - **Different part_no sharing merged NW/qty:** Error ERR_046 - weight cannot be properly allocated when different parts share the same merged weight cell
-  - **Validation timing:** ERR_046 is checked immediately after packing item extraction, BEFORE weight allocation. This provides a clear root cause error instead of the downstream ERR_042 (zero weight) symptom.
-  - **Processing order:** Capture all numeric merges BEFORE unmerging → Unmerge sheets → Find headers & map columns → Filter merges to NW/qty columns → Validate part_no consistency
+  - **Validation timing (CRITICAL):** ERR_046 is checked immediately after packing item extraction, BEFORE weight allocation. This provides a clear root cause error instead of the downstream ERR_042 (zero weight) symptom.
+  - **Processing order:** Capture all numeric merges BEFORE unmerging → Unmerge sheets → Find headers & map columns → Extract packing items → **Validate merged weight cells (ERR_046)** → Total row detection → Weight allocation
   - **Weight aggregation:** When same part_no shares merged weight, only the first row of the merge contributes to weight sum (FR22) to prevent double-counting
+
+  **Concrete Example - ERR_046 Scenario:**
+  ```
+  Packing Sheet (before unmerging):
+  ┌─────────┬──────────┬────────┬─────────┐
+  │ Row     │ Part No. │ Qty    │ NW (KG) │
+  ├─────────┼──────────┼────────┼─────────┤
+  │ Row 23  │ 490DLF00 │ 200    │         │
+  │         │          │        │  770.84 │ ← NW cell merged across rows 23-25
+  │ Row 24  │ 490DPY10 │ 5018   │         │
+  │ Row 25  │ 490DPY10 │ 750    │         │
+  └─────────┴──────────┴────────┴─────────┘
+
+  Problem: The merged NW cell (770.84) spans 3 rows containing 2 DIFFERENT part numbers:
+    - Row 23: 490DLF00
+    - Rows 24-25: 490DPY10
+
+  The system cannot determine how to split 770.84 kg between 490DLF00 and 490DPY10.
+
+  Error: [ERR_046] Different parts (490DLF00, 490DPY10) share merged NW/qty cell (rows 23-25)
+  ```
+
+  **Why ERR_046 before ERR_042:** Without this validation, rows 24-25 would have NW=0 after unmerging (only row 23 retains the value), causing the downstream error ERR_042 "Part '490DPY10' has qty but packing weight=0". ERR_046 identifies the root cause (merged cell with different parts) rather than the symptom (zero weight).
 
 * **FR14:** **Error:** If a *Required Column* is missing, log specific error. If an *Optional Column* is missing, process continues.
 
@@ -865,7 +888,7 @@ AutoConvert/
 | ERR_043 | Packing part not in invoice | Part exists in packing but not found in invoice | Verify part numbers match between sheets |
 | ERR_044 | Weight rounds to zero | Part weight rounds to zero even at max 6 decimal precision | Weight value too small to represent |
 | ERR_045 | Zero quantity for part | Total quantity for part is zero, cannot allocate weight | Verify quantity values in invoice |
-| ERR_046 | Different parts share merged weight | Different part_no values share the same merged NW/qty cell | Separate parts must have separate weight cells |
+| ERR_046 | Different parts share merged weight | Different part_no values share the same merged NW/qty cell (e.g., NW cell merged across rows 23-25, but row 23 has part A and rows 24-25 have part B) | Vendor must separate weight cells so each part has its own weight value |
 | ERR_047 | Packing sum mismatch | Sum of extracted packing weights differs from total_nw by more than 0.1 (validated BEFORE allocation) | Check for missing packing rows, duplicate weights, or wrong total row detected |
 
 **Attention Codes (Status = ATTENTION - Output generated):**
