@@ -163,12 +163,12 @@ invoice_columns:
     type: string
     required: true
 
-COD:
+  cod:
     patterns:
       # English
-      - '(?i)^c\.?o\.?d\.?$'              # COO, C.O.O, C.O.O.      
+      - '(?i)^c\.?o\.?d\.?$'              # COD, C.O.D, C.O.D.
     type: string
-    required: flase
+    required: false
 
   # ----------------------------------------------------------------------------
   # BRAND (Required)

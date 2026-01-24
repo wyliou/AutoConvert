@@ -3,26 +3,27 @@ name: build-from-prd
 description: Implement a PRD with sequential subagent delegation
 ---
 
-# Build from PRD 
+# Build from PRD
 
-## Quick Reference
-   
-**Output:** Terse. Use "✓ Step N complete" format.
+## Role & Output Style
 
-**Role:** Tech Lead coordinating subagents. You plan, delegate, integrate — you don't implement subsystems.
+**You are a Tech Lead.** You plan, delegate, and integrate. You do NOT implement subsystems.
 
-| Action | Main | Sub |
-|--------|:----:|:---:|
-| Read PRD/architecture docs | ✓ | ✗ |
-| Scaffold (dirs, init files, manifest) | ✓ | ✗ |
-| Write subsystem code | ✗ | ✓ |
-| Write tests | ✗ | ✓ |
-| Write pipeline/entry point | ✓ | ✗ |
-| Run commands (test, lint) | ✓ | ✓ |
+**Output:** Terse. Use "Step N complete" format. Minimize verbose explanations.
 
-**Enforcement:** Do not directly edit subsystem implementation files. Only edit: init/index files, entry points (main.py, index.ts, main.go), and pipeline orchestration. Delegate all other source file changes via Task tool.
+## What You Do vs Delegate
 
-**Test Gate:** Every subsystem delegation MUST return `tests: N passing` where N > 0. Reject and re-delegate if missing.
+| Action | You | Subagent |
+|--------|:---:|:--------:|
+| Read PRD/architecture docs | Y | - |
+| Create task list (TaskCreate) | Y | - |
+| Scaffold (dirs, init files, manifest) | Y | - |
+| Write subsystem code | - | Y |
+| Write tests | - | Y |
+| Write entry point / pipeline | Y | - |
+| Run commands (test, lint) | Y | Y |
+
+**Enforcement:** Do NOT edit `src/**/*.py` files except: `__init__.py`, `main.py`, `__main__.py`, pipeline/orchestration files. All other source files must be delegated via Task tool.
 
 ---
 
@@ -30,86 +31,76 @@ description: Implement a PRD with sequential subagent delegation
 
 ### 1. Pre-flight & Plan
 
-**Verify docs exist:**
+**1.1 Verify docs exist:**
 ```
 ls docs/PRD.md docs/architecture.md
 ```
-If missing → STOP, notify user.
+If missing: STOP, notify user.
 
-**Read and extract (for each subsystem):**
-- From PRD.md:
-  - FRs: full text including tables, formats, codes
-  - NFRs: performance, validation requirements
-  - Error cases: what edge cases must be handled
-  - Examples: sample inputs/outputs if provided
-  - **MUST/CRITICAL statements:** Extract statements with "MUST", "CRITICAL", "REQUIRED" - these are non-negotiable
-  - **Numeric constraints:** Extract numbers with units (e.g., "13 columns", "13 fields", "rows 7-30") - flag ambiguous ones
-- From architecture.md:
-  - Tech stack, dependencies, data models
-  - Input/Output types per subsystem
-  - Architecture pattern excerpt
+**1.2 Read and extract:**
 
-**Create PRD Checklist (before delegation):**
-```
-MUST/CRITICAL statements:
-- [ ] "MUST..." / "CRITICAL..." - line NNN
+From PRD.md (for each subsystem):
+- FRs: full text including tables, formats, codes
+- NFRs: performance, validation requirements
+- Error cases and edge cases
+- Input/output examples
+- MUST/CRITICAL statements (non-negotiable requirements)
+- Numeric constraints with units
 
-Numeric constraints:
-- [ ] counts, limits, ranges - line NNN
+From architecture.md:
+- Tech stack, dependencies
+- Data models per subsystem
+- Interface signatures
+- **Subsystem dependency graph**
 
-Input→Output examples:
-- [ ] every "X" → Y example - line NNN
-
-Scattered requirements (group by topic):
-- [ ] topic: lines NNN, MMM, PPP → single subsystem
-```
-**GATE:** Every input→output example requires a test. Related requirements across sections must be grouped before delegation.
-
-**Define interfaces (before any delegation):**
-Design API contracts between subsystems based on architecture.md. This ensures:
-- Subsystems can be developed independently in parallel
-- Each subagent knows exact inputs/outputs for their module
-- Integration works because all subsystems agree on signatures upfront
+**1.3 Define interfaces (BEFORE delegation):**
 ```
 <subsystem> interfaces:
 - func(param: type) -> type: "purpose"
-  Example: func(x) → y
 ```
 
-**Map FRs → subsystems:** Each FR maps to one primary subsystem.
-**Map NFRs → subsystems:** Assign relevant NFRs to affected subsystems.
+**1.4 Map FRs to subsystems:**
 
-**FR Coverage Matrix (CRITICAL - verify BEFORE implementation):**
-```
-| FR | Subsystem | Acceptance Criteria (from PRD) |
-|----|-----------|--------------------------------|
-| FR-XX | parser | Valid files return DataFrame with expected columns |
-| FR-YY | validator | Invalid rows flagged with error messages |
-```
-**GATE:** Every FR must have: subsystem assignment + acceptance criteria. Stop if any FR unmapped.
+| FR | Subsystem | Acceptance Criteria |
+|----|-----------|---------------------|
+| FR-XX | parser | Valid files return DataFrame |
 
-**File discovery:**
+**GATE:** Every FR must have subsystem + acceptance criteria. Stop if any unmapped.
+
+**1.5 Build dependency table:**
+
+| Subsystem | Dependencies | Batch |
+|-----------|--------------|-------|
+| config | (none) | 1 |
+| parser | config | 2 |
+| validator | config | 2 |
+| transformer | parser, validator | 3 |
+
+Rules for batching:
+- Batch 1: subsystems with no dependencies
+- Batch N: subsystems whose ALL dependencies are in batches < N
+- Max 3 subsystems per batch (parallel limit)
+
+**1.6 Check existing structure:**
 ```
 ls -la
 ```
-Check for existing: src/, tests/, manifest (pyproject.toml, package.json, go.mod, etc.)
 
-**GATE:** Stop if FR unmappable, docs incomplete, or dependency cycle detected.
-
-**Output to TodoWrite:**
+**1.7 Create task list via TaskCreate:**
 ```
 1. Scaffold (if needed)
-2. Implement <subsystem_1>
-3. Implement <subsystem_2>
-... (per dependency order)
-N. Integration (includes FR verification)
-N+1. Real Data Validation
-N+2. Code simplification
-N+3. Build & docs
-N+4. Commit
+2. Batch 1: <subsystem_a>
+3. Batch 2: <subsystem_b>, <subsystem_c>  [parallel]
+4. Batch 3: <subsystem_d>
+...
+N. Integration
+N+1. Real data validation
+N+2. Final verification
 ```
 
-Brief: "Found X FRs, Y subsystems"
+**Output:** "Plan complete: X FRs, Y subsystems, Z batches"
+
+---
 
 ### 2. Scaffold (if needed)
 
@@ -117,223 +108,280 @@ Brief: "Found X FRs, Y subsystems"
 
 **Otherwise create:**
 - Directory structure per architecture.md
-- pyproject.toml / package.json
-- `__init__.py` / index.ts files
-- Run `uv sync` / `npm install`
+- pyproject.toml / package.json / go.mod
+- `__init__.py` / index files
+- Run dependency install (`uv sync`, `npm install`, etc.)
 
-**Output:** "✓ Scaffold complete" or "✓ Scaffold skipped"
-
-### 3. Implement & Test (delegate each subsystem)
-
-Execute in dependency order, ONE subsystem at a time. Sequential execution avoids subtle integration issues from parallel development (data format assumptions, interface drift, semantic dependencies).
-
-For each subsystem, delegate via Task tool (subagent_type="general-purpose"). See **Appendix A** for template.
-
-**After each return:**
-- Questions? → Answer, re-delegate (max 1 round)
-- Blocker? → Resolve, re-delegate
-- Success? → Verify compliance for this subsystem:
-
-**Per-subsystem compliance check (do NOT proceed until pass):**
-1. **Acceptance criteria met?** Check each FR assigned to this subsystem against its acceptance criteria in the coverage matrix
-2. **MUST statements verified?** For any MUST/CRITICAL statements related to this subsystem, trace code path to confirm
-3. **Numeric constraints correct?** Verify any numbers/limits for this subsystem match PRD intent
-4. **Tests pass?** All tests for this subsystem must pass
-5. **Output format verified?** If PRD provides example outputs (logs, reports, files), compare actual output character-by-character against examples
-6. **Data model edge cases?** Verify data structures capture all fields needed for reporting across ALL status outcomes (success, warning, error, edge cases)
-7. **Requirement applied to all code paths?** If a requirement affects multiple code paths (e.g., encoding for console, file, diagnostic output), verify ALL paths implement it
-
-**If any check fails:** Fix directly or re-delegate with specific feedback. Max 2 re-delegation rounds per subsystem.
-
-**Output:** "✓ <subsystem>: N tests passing, acceptance criteria verified for FR-X, FR-Y"
-
-### 4. Integration (main agent writes directly)
-
-**Pre-gate:**
-1. Verify test files exist for each subsystem
-2. Run test discovery to confirm tests are found
-3. If tests missing → delegate test creation first
-
-**Write entry point:**
-- Create main entry point per architecture.md (e.g., `main.py`, `index.ts`, `main.go`)
-- Import public APIs from all subsystems
-- Wire together per the data flow defined in architecture.md
-- Handle CLI args if specified in PRD
-
-**FR-tagged export verification (CRITICAL):**
-- Review exports from each subsystem, especially those tagged with FRs
-- For each FR-tagged export: verify it is imported AND called in the pipeline
-- If a simpler variant exists (e.g., `map_columns` vs `map_columns_with_subheader`), use the FR-tagged one
-- Example: FR9 requires multi-row headers → must use `map_columns_with_subheader`, not `map_columns`
-
-**For complex entry points:** If entry point requires >100 lines or has its own FRs (e.g., FR66: CLI handling), delegate via Task tool instead of writing directly.
-
-**Verify (use stack-appropriate tools from architecture.md):**
-1. Tests pass (e.g., `pytest`, `npm test`, `go test`)
-2. Type check passes (e.g., `pyright`, `tsc`, `mypy`)
-3. Lint passes (e.g., `ruff`, `eslint`, `golint`)
-4. All FR-tagged exports are actually called in the pipeline
-5. All FRs accounted for? Scan coverage matrix - every FR should be checked off
-6. Cross-subsystem MUST statements? Verify any that span multiple subsystems
-
-**Output:** "✓ Integration: N tests, N/N FRs, checks pass"
-
-**If gaps found:** Return to Step 3 for the affected subsystem.
-
-### 5. Real Data Validation (delegate)
-
-**Skip if:** Pure library with no entry point AND no test data files exist.
-
-**Pre-check:** Look for inputs in data/, samples/, test_data/, fixtures/
-
-**Delegate via Task tool (subagent_type="general-purpose").**
-See **Appendix B** for template. Fill in:
-- Entry point and input path
-- Expected behavior (what the tool does with inputs)
-- **Include PRD examples** that mention specific files or data patterns
-
-**Output:** "✓ Validation: N/M passed (X input_issues)"
-
-**If fixes applied:** Re-run tests to verify no regressions.
-
-**IMPORTANT:** If validation reveals missing functionality that PRD specified, return to Step 3 and fix.
-
-### 6. Code Simplification (delegate) - Skip at this moment
-
-**Delegate via Task tool (subagent_type="general-purpose"):**
-
-```
-Simplify: <src_path>
-
-Rules:
-- Remove dead code (unused imports, unreachable branches)
-- Flatten nested logic >3 levels
-- Extract functions >20 lines
-- Run tests after changes
-
-Return: {files_modified: N, tests_pass: bool}
-```
-
-**Output:** "✓ Simplified: N files, tests pass"
-
-### 7. Build & Docs - Skip at this moment
-
-**Build (if specified in architecture.md):**
-- Look for "Build" or "Distribution" section
-- Run build command, validate output
-
-**Documentation:**
-- Update README.md (setup, test, structure)
-- Write docs/user_guide.md (non-technical perspective)
-
-**Output:** "✓ Build: [path]" / "✓ Docs updated"
-
-### 8. Commit - Skip at this moment
-i 
-Use project convention if specified, else: `feat: implement [PRD name]`
-
-### 9. Summary
-
-```
-## Complete
-Subsystems: N (each verified in Step 3)
-FRs: N/N covered | Tests: N passing
-Validation: N/M | Build: [status]
-```
-
-**If any gaps found:** This indicates Step 3 gates were not enforced - each subsystem should have been verified before proceeding.
+**Output:** "Scaffold complete" or "Scaffold skipped"
 
 ---
 
-## Appendix A: Subsystem Delegation Template
+### 3. Implement & Test (delegate by batch)
+
+Process batches in order. Within each batch, delegate in parallel.
+
+#### Parallel Execution Rules
+
+| Rule | Description |
+|------|-------------|
+| Max concurrency | 3 subagents per batch |
+| Dependency respect | Never start subsystem before its dependencies complete |
+| No file conflicts | Verify no two subsystems in same batch write to same file |
+| Batch completion | Wait for ALL subagents in batch before starting next |
+
+#### Pre-batch: Update Dependency Status
+
+Before each batch, update the table:
+
+| Subsystem | Dependencies | Status |
+|-----------|--------------|--------|
+| config | (none) | done |
+| parser | config | ready |
+| validator | config | ready |
+| transformer | parser, validator | blocked |
+
+Status: `done` = complete, `ready` = deps satisfied, `blocked` = deps pending
+
+#### Delegation Template
+
+For each subsystem, delegate via Task tool (subagent_type="general-purpose"):
 
 ```
 Implement & test: <subsystem_name>
 Module: <path> | Tests: <test_path>
 
-Dependencies (ONLY import from these, no peer subsystems):
+Dependencies (import ONLY from these):
 - <module>: <exports>
 
-Stack: <language version | test framework | linter> (from architecture.md)
-
-Style:
-- Type annotations on all functions (per language idioms)
-- Docstrings/comments per project style guide
-- Max 500 lines/file
-
-Architecture:
-<relevant pattern excerpt from architecture.md>
-
-Data Models:
-Input: <type definitions this subsystem receives>
-Output: <type definitions this subsystem produces>
-Internal: <any internal types if needed>
+Stack: <language | test framework | linter>
 
 Interfaces (implement these exact signatures):
 - func(param: type) -> type: "purpose"
-  Example: func(x) → y
 
-Error Handling:
-- <what errors to raise, edge cases to handle per PRD>
+Data Models:
+- Input: <type>
+- Output: <type>
 
 FRs (implement EXACTLY as specified):
-- FR-XXX: <full requirement text>
-- Include ALL input→output examples from PRD for this FR
+- FR-XXX: <full requirement text with examples>
 
-NFRs (if applicable):
-- <performance, validation, or other non-functional requirements>
+Error Handling:
+- <what errors to raise, edge cases per PRD>
 
 Tasks:
-1. If requirements unclear → return {questions: [...]} and STOP
-2. Write tests covering FRs, interfaces, edge cases, and every PRD example
+1. If unclear: return {questions: [...]} and STOP
+2. Write tests covering FRs, interfaces, edge cases
 3. Implement to pass tests (TDD)
-4. Add PRD line references in code comments for non-obvious logic
-5. Type check → lint → fix all issues (use tools from Stack)
-6. Verify data models capture fields needed for ALL outcomes (success/warning/error)
-7. If requirement affects multiple code paths → verify ALL paths implement it
+4. Type check -> lint -> fix all issues
+5. Verify output format matches PRD examples exactly
 
-Gates: tests pass, lint clean, types clean, interfaces match, all PRD examples tested, all code paths covered, PRD traceability in comments
+Gates: tests pass, lint clean, types clean, interfaces match
 
 Return: {
   tests: N passing,
-  exports: [
-    {func: "func_name", fr: "FR-XX"},  // FR-specific function
-    {func: "helper_func", fr: null}     // General helper, no specific FR
-  ],
+  exports: [{func: "name", fr: "FR-XX"}],
   blockers: [...]
 }
-
-Note: Tag exports with the FR they implement. This ensures integration uses the correct function for each requirement.
 ```
 
-## Appendix B: Data Validation Template
+#### Parallel Batch Execution
+
+**For each batch with multiple ready subsystems:**
+
+1. **Conflict check:** Verify no file write conflicts between subsystems
+2. **Launch parallel:** Send ALL Task tool calls in a single message
+   ```
+   [Task: subsystem_a] [Task: subsystem_b] [Task: subsystem_c]
+   ```
+3. **Wait for all:** Collect all results before proceeding
+4. **Process results:** Handle each result (see below)
+
+#### Result Handling
+
+| Result | Action |
+|--------|--------|
+| Questions | Queue for answer, re-delegate after batch |
+| Blocker | Queue for resolution, re-delegate after batch |
+| Success | Verify, update export registry |
+
+#### Batch Failure Handling
+
+| Scenario | Action |
+|----------|--------|
+| 1 agent fails | Continue others, retry failed one in next round |
+| 2+ agents fail | Pause, ask user whether to continue or debug |
+| Max retries (2) | Escalate to user |
+
+#### Per-subsystem Verification (3 checks)
+
+1. Tests pass for this subsystem
+2. Acceptance criteria met for assigned FRs
+3. Output format matches PRD examples (if applicable)
+
+**If any check fails:** Queue for re-delegation in next round. Max 2 rounds per subsystem.
+
+#### Export Registry
+
+Track FR-tagged exports from each completed subsystem:
+
+```
+Export Registry:
+- config: [{func: "load_config", fr: "FR-1"}]
+- parser: [{func: "parse_file", fr: "FR-5"}, {func: "parse_header", fr: "FR-6"}]
+```
+
+Use this registry in Step 4 to verify all FR functions are called.
+
+**Output per batch:** "Batch N: <sub1> (X tests), <sub2> (Y tests)"
+
+**Output when all batches complete:** "Implementation: N subsystems, M total tests"
+
+---
+
+### 4. Integration
+
+**Pre-gate:**
+1. Verify test files exist per stack convention
+2. Run test discovery per stack (e.g., `pytest --collect-only`, `npm test --listTests`, `go test -list .`)
+3. If tests missing: delegate test creation first
+
+**Write entry point (you write this directly):**
+- Create entry point per architecture.md (e.g., `main.py`, `index.ts`, `cmd/main.go`)
+- Import public APIs from all subsystems
+- Wire together per data flow in architecture.md
+- Handle CLI args if specified
+
+**FR-tagged export verification (use Export Registry):**
+- For each FR-tagged export: verify it's imported AND called
+- If simpler variant exists alongside FR-tagged one: use the FR-tagged function
+- Check: `All exports with fr != null must be called`
+
+**Verify (use commands from architecture.md tech stack):**
+1. Test command - all tests pass
+2. Type check command - passes (if applicable)
+3. Lint command - passes
+4. All FRs accounted for in coverage matrix
+
+**Output:** "Integration: N tests, N/N FRs, checks pass"
+
+**If gaps found:** Return to Step 3 for affected subsystem.
+
+---
+
+### 5. Real Data Validation
+
+**Skip ONLY if:** Pure library with no entry point AND no test data exists.
+
+**Check for inputs:** `ls data/ samples/ test_data/ fixtures/`
+
+**Delegate validation:**
 
 ```
 Validate: <entry_point>
 Inputs: <data_path>
-PRD: docs/PRD.md
 
-Expected behavior:
-<brief description of what the tool should do with inputs>
+Expected behavior: <what the tool does>
 
-Classification rules:
-- code_bug: PRD says this case SHOULD be handled, but code fails
-- input_issue: genuinely malformed data AND PRD is silent on handling it
+Classification:
+- code_bug: PRD says handle this case, code fails
+- input_issue: genuinely malformed AND PRD silent on it
 
 Tasks:
-1. Run against ALL test inputs, capture results
-2. For each failure:
-   - Inspect the input file
-   - Trace code path
-   - Check PRD: does it require handling this case?
-   - Classify as code_bug or input_issue
-3. Fix code_bugs (only modify src/, not config)
-4. Re-run tests after each fix
-5. Max 3 fix iterations
+1. Run against ALL test inputs
+2. For each failure: inspect input, trace code, check PRD
+3. Classify as code_bug or input_issue
+4. Fix code_bugs (src/ only, not config)
+5. Re-run tests after each fix
+6. Max 3 fix iterations
 
-Constraints:
-- Do NOT modify config files
-- Default to code_bug if unsure
-
-Return: {passed: N, bugs_fixed: N, input_issues: N, fixes: ["summary1", ...]}
+Return: {passed: N, bugs_fixed: N, input_issues: N}
 ```
+
+**Output:** "Validation: N/M passed (X input_issues)"
+
+**If bugs fixed:** Re-run tests to verify no regressions.
+
+---
+
+### 6. Final Verification
+
+**PRD compliance spot-check:**
+1. Pick 2-3 high-risk FRs (complex logic, multiple conditions)
+2. Trace code path for each
+3. Verify output matches PRD specification exactly
+
+**If issues found:** Fix directly or re-delegate, then re-validate.
+
+**Output:** "Verified: N FRs spot-checked"
+
+---
+
+### 7. Summary
+
+```
+## Complete
+Subsystems: N (in B batches) | FRs: N/N covered
+Tests: N passing | Validation: N/M inputs
+```
+
+---
+
+## Recovery Procedures
+
+**Subagent returns questions:**
+1. Answer based on PRD/architecture
+2. If PRD unclear: ask user via AskUserQuestion
+3. Re-delegate with clarified requirements
+
+**Subagent blocked:**
+1. Check if dependency issue (wrong batch order)
+2. Check if missing context (add to prompt)
+3. If infrastructure issue: resolve directly, then re-delegate
+
+**Parallel batch partial failure:**
+1. Let successful agents complete
+2. Collect failures and analyze common cause
+3. If related failures: fix root cause, re-delegate all
+4. If unrelated: re-delegate individually in next round
+
+**Tests failing after integration:**
+1. Identify which subsystem's tests fail
+2. Check if integration broke existing functionality
+3. Fix integration code OR re-delegate subsystem fix
+
+**Validation finds bugs:**
+1. Classify: is it subsystem logic or integration wiring?
+2. Subsystem logic: re-delegate to that subsystem
+3. Integration wiring: fix directly
+
+---
+
+## Gates Summary
+
+| Gate | Location | Fail Action |
+|------|----------|-------------|
+| Docs exist | Step 1.1 | STOP, notify user |
+| All FRs mapped | Step 1.4 | STOP, resolve mapping |
+| No batch conflicts | Step 3 pre-batch | Run conflicting subsystems sequentially |
+| Tests exist per subsystem | Step 3 post-delegation | Reject, re-delegate |
+| Verification pass | Step 3 post-delegation | Re-delegate (max 2x) |
+| Test files exist | Step 4 pre-gate | Delegate test creation |
+| All FR exports called | Step 4 verify | Add missing calls |
+| All checks pass | Step 4 verify | Fix or return to Step 3 |
+| Validation pass | Step 5 | Fix bugs, re-validate |
+
+---
+
+## Quick Reference: Parallel vs Sequential
+
+**Use parallel (default):** When dependency graph allows independent subsystems
+
+**Force sequential:** When:
+- Subsystems have subtle data format dependencies not in architecture.md
+- Shared test fixtures that could conflict
+- User explicitly requests sequential
+
+**Batch size guidance:**
+- 2-3 subsystems: parallelize all independent ones
+- 4-6 subsystems: 2-3 batches typical
+- 7+ subsystems: consider if architecture needs simplification

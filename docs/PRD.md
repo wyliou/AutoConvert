@@ -451,7 +451,7 @@ AutoConvert/
   - **Implementation:** Extract per-row inv_no during item extraction, then only assign header inv_no to items where `item.inv_no` is empty
   - Example: File has header inv_no "F625081578" and data column with "F625081578" (rows 1-6) and "F625081579" (rows 7-16) → output preserves per-row values, not header value for all rows
 
-* **FR17:** System can extract 13 per-item fields from invoice sheet (part_no, po_no, qty, price, amount, currency, coo, COD, brand, brand_type, model, inv_no, serial)
+* **FR17:** System can extract 13 per-item fields from invoice sheet (part_no, po_no, qty, price, amount, currency, coo, COD, aㄇbrand, brand_type, model, inv_no, serial)
   - **Note:** weight is NOT extracted from invoice sheet; it is calculated by weight allocation (FR31-FR36)
   - **String fields:** Strip leading/trailing whitespace
   - **WYSIWYG + ROUND_HALF_UP (CRITICAL):** Numeric fields use WYSIWYG decimal places with ROUND_HALF_UP rounding:
@@ -465,6 +465,7 @@ AutoConvert/
   - **Leading blank rows (CRITICAL):** Skip blank rows between header row and data rows BEFORE checking stop conditions. This allows files with empty rows between header and first data row to be processed correctly.
     - **Processing order:** For each row after header: (1) Check if row is blank → skip and continue, (2) Check stop conditions → stop if matched, (3) Process data row
     - Example: Header at row 23, row 24 is blank, data starts at row 25 → row 24 is skipped, extraction starts at row 25
+  - **Header continuation filtering:** Skip rows where part_no contains standalone header keywords: "part no" (handles sub-header rows being mistakenly extracted as data)
   - **Merged cell handling:** For data rows, propagate ALL string field values from merged cells to all rows in the merge range (see FR12)
   - **Data extraction stops:** When ANY of these conditions are detected:
     - part_no is empty AND qty = 0 (after first data row found)
@@ -487,6 +488,7 @@ AutoConvert/
   - **Merged cell handling:** Use merged cell tracker to propagate part_no values for row detection
   - **Header continuation filtering:** Skip rows where part_no contains standalone header keywords: "part no"
   - **Pallet summary filtering:** Skip rows where part_no contains pallet keywords: "plt.", "plt ", "pallet" (case-insensitive)
+  - **Empty part_no filtering:** Skip rows where part_no is empty (not valid packing data - cannot be matched to invoice items for weight allocation)
   - **No-weight-data row filtering:** Skip rows where qty=0 and nw=0 (rows with no meaningful weight data). These rows are skipped but do not terminate extraction.
     - Example: Row 25 has part_no="ABC", qty=6400, nw=14.27. Row 26 has part_no="ABC",qty=None, nw=None. Row 27 has qty=512, nw=1.14 → Row 26 is skipped, extraction continues to row 27.
   - **Data extraction stops:** At the first row where:
@@ -570,10 +572,11 @@ AutoConvert/
   When extracting packet values, the system handles these formats:
   - **Pure numeric:** `7`, `12`, `100`
   - **With unit suffix:** `7CTNS`, `10CTN`, `30箱`, `50件`, `12托`, `5PCS`
+  - **With unit suffix and additional text:** `30箱(兩托)`, `7CTNS (2 pallets)` - extract leading number before unit
   - **Embedded in PLT indicator:** `7 PLT.G`, `PLT.G 5`, `1 PLT.G`
   - **Embedded in Chinese text:** `共7托`, `172件`, `包装种类：再生托板7托`
 
-  The system strips packet unit suffixes (CTNS, CTN, 箱, 件, 托, PCS) before parsing.
+  The system extracts the leading number followed by optional unit suffix, ignoring any trailing text (e.g., `30箱(兩托)` → `30`).
 
   - **Column Search Range:** Columns A through (NW column + 2), minimum 11
     - Example: If NW is in column K (11), search columns A-M (1-13)
@@ -627,6 +630,13 @@ AutoConvert/
   - **COD Override (CRITICAL):** When the COD column exists and a row's COD field has a non-empty value, use the COD value to replace the COO value for that invoice line BEFORE standardization. This allows vendors to specify a different country of origin at the line-item level.
     - Example: Row has coo="CHINA", cod="TAIWAN" → use "TAIWAN" as the COO value for standardization
     - Example: Row has coo="CHINA", cod="" (empty) → keep "CHINA" as the COO value
+  - **Placeholder Values:** The following values in COO or COD fields should be treated as empty (not triggering ATT_004 warning):
+    - Single or multiple asterisks: `*`, `**`, `***`, `****`, etc.
+    - Slash placeholders: `/`, `//`
+    - Dash placeholders: `-`, `--`
+    - Common null indicators: `N/A`, `NA`, `NONE`, `NULL`
+    - Example: Row has coo="CHINA", cod="/" → "/" is treated as empty, keep "CHINA" as the COO value
+    - Example: Row has coo="****", cod="" → "****" is treated as empty, COO becomes empty string
   - **Normalization:** Multi-step lookup with progressive normalization:
     1. Try original value (uppercase, trimmed)
     2. Try with ALL internal whitespace removed (e.g., `MADE IN CHINA` → `MADEINCHINA`)
