@@ -477,10 +477,10 @@ AutoConvert/
 * **FR17:** System can extract 13 per-item fields from invoice sheet (part_no, po_no, qty, price, amount, currency, coo, COD, aㄇbrand, brand_type, model, inv_no, serial)
   - **Note:** weight is NOT extracted from invoice sheet; it is calculated by weight allocation (FR31-FR36)
   - **String fields:** Strip leading/trailing whitespace
-  - **WYSIWYG + ROUND_HALF_UP (CRITICAL):** Numeric fields use WYSIWYG decimal places with ROUND_HALF_UP rounding:
+  - **Field-Specific Precision + ROUND_HALF_UP (CRITICAL):** Numeric fields use defined decimal precision with ROUND_HALF_UP rounding:
     - **qty:** Use cell's displayed precision
     - **price:** Use fixed 5 decimal precision
-    - **amount:** Use cell's displayed precision
+    - **amount:** Use fixed 2 decimal precision
   - **ROUND_HALF_UP (rounding method):** 0.5 always rounds up (e.g., 0.125 → 0.13, not 0.12). Implementation uses epsilon trick: `round(value * 10^decimals + 1e-9) / 10^decimals` to avoid floating-point issues where 0.19995 is stored as 0.19994999...
   - **Cell format precision detection:** Read cell's `number_format` property, extract decimal places from format string (e.g., `0.00` → 2 decimals, `0.0000` → 4 decimals). If format is `General`, use fixed 5 decimals.
   - **Floating-point artifact elimination:** This rounding eliminates artifacts (e.g., `77.22000000000001` → `77.22`, `0.19995` with 4-decimal format → `0.2`)
@@ -495,7 +495,7 @@ AutoConvert/
     - part_no contains "total" (case-insensitive, e.g., "total", "total:", "Grand Total", "subtotal")
     - part_no contains footer keywords (报关行, 有限公司, etc.)
     -  **Any cell in first 10 columns (A-J)** contains "total", "合计", "总计", "小计" (handles TOTAL appearing in po_no or other columns)
-  - 
+
 ### Data Extraction - Packing (FR18-FR25)
 
 **Extraction Order:** Packing data extraction MUST happen before total row detection. This allows the system to determine `last_data_row` (the row number of the last extracted packing item) which is then used as the starting point for total row search.
