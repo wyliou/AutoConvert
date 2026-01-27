@@ -1,0 +1,57 @@
+[project]
+name = "autoconvert"
+version = "1.0.0"
+description = "CLI tool for converting vendor Excel files to standardized customs templates"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+    { name = "Alex Liou" }
+]
+dependencies = [
+    "openpyxl>=3.1.0",
+    "xlrd>=2.0.0",
+    "pyyaml>=6.0",
+    "pydantic>=2.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.12.0",
+]
+
+[project.scripts]
+autoconvert = "autoconvert.main:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/autoconvert"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+
+[tool.pyright]
+pythonVersion = "3.11"
+typeCheckingMode = "basic"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = ["-v", "--cov=src/autoconvert", "--cov-report=term-missing"]
+markers = [
+    "unit: Unit tests (fast, no I/O)",
+    "integration: Integration tests (mock worksheets)",
+]
+
+[dependency-groups]
+dev = [
+    "pyinstaller>=6.18.0",
+]
