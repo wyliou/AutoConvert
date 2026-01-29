@@ -1,6 +1,6 @@
 ---
 name: build-from-prd
-description: Implement a PRD with sequential subagent delegation
+description: Implement a PRD with subagent delegation
 ---
 
 # Build from PRD
