@@ -20,7 +20,7 @@ def clean_po_number(value: str) -> str:
         return ""
 
     # Remove suffix starting from first '-' or '/'
-    for delimiter in ["-", "/"]:
+    for delimiter in ["-", "/", "."]:
         if delimiter in value:
             value = value.split(delimiter)[0]
             break
@@ -31,7 +31,7 @@ def clean_po_number(value: str) -> str:
 def clean_invoice_number(value: str) -> str:
     """Clean invoice number by removing common prefixes.
 
-    Removes: INV#, NO., INV., etc.
+    Removes: INV#, NO., etc. (but NOT bare "INV" prefix).
 
     Args:
         value (str): Raw invoice number.
@@ -43,8 +43,9 @@ def clean_invoice_number(value: str) -> str:
         return ""
 
     # Remove common prefixes
+    # Note: Only remove "INV#" (with hash), not bare "INV"
     patterns = [
-        r"^INV\.?\s*#?\s*",  # INV#, INV., INV
+        r"^INV#\s*",  # INV# (with optional space after)
         r"^NO\.?\s*",  # NO., NO
         r"^INVOICE\s*#?\s*",  # INVOICE#, INVOICE
     ]

@@ -53,8 +53,8 @@ class TestCleanInvoiceNumber:
         "input_value,expected",
         [
             ("INV#12345", "12345"),
-            ("INV. 12345", "12345"),
-            ("INV12345", "12345"),
+            ("INV# 12345", "12345"),
+            ("INV12345", "INV12345"),  # Bare "INV" prefix is preserved
             ("NO. ABC123", "ABC123"),
             ("NO.ABC123", "ABC123"),
             ("12345", "12345"),
@@ -62,13 +62,13 @@ class TestCleanInvoiceNumber:
         ],
     )
     def test_removes_common_prefixes(self, input_value: str, expected: str):
-        """Test that INV, NO prefixes are removed."""
+        """Test that INV#, NO prefixes are removed (but NOT bare INV)."""
         assert clean_invoice_number(input_value) == expected
 
     def test_case_insensitive(self):
         """Test that prefix matching is case-insensitive."""
         assert clean_invoice_number("inv#ABC") == "ABC"
-        assert clean_invoice_number("Inv.123") == "123"
+        assert clean_invoice_number("inv#123") == "123"
         assert clean_invoice_number("no. 789") == "789"
 
     def test_preserves_content_without_prefix(self):
