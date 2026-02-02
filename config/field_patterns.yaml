@@ -247,6 +247,7 @@ invoice_columns:
       - '(?i)^invoice\s*no'               # Invoice No
       - '(?i)^invoice\s*number'           # Invoice Number
       - '(?i)^inv\s*#'                    # Inv #, INV#
+      - '(?i)^invoice'                    # Invoice
       # Chinese
       - '(?i)发票号'                      # 发票号
       - '(?i)发票号码'                     # 发票号码

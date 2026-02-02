@@ -46,3 +46,5 @@ _bmad*
 # Data files (may contain sensitive business data)
 data*/finished
 data*/output
+data*
+
